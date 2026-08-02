@@ -1,0 +1,69 @@
+cff-version: 1.2.0
+message: "If you use HAWK, please cite the CVPR 2026 paper."
+title: "HAWK: Head Importance-Aware Visual Token Pruning in Multimodal Models"
+type: software
+version: 0.1.0
+date-released: 2026-08-02
+repository-code: "https://github.com/peppery77/HAWK"
+url: "https://arxiv.org/abs/2604.07812"
+license: Apache-2.0
+authors:
+  - family-names: Zhu
+    given-names: Qihui
+  - family-names: Zhang
+    given-names: Tao
+  - family-names: Wang
+    given-names: Yuchen
+  - family-names: Wen
+    given-names: Zijian
+  - family-names: Zhang
+    given-names: Mengjie
+  - family-names: Chen
+    given-names: Shuangwu
+  - family-names: Tan
+    given-names: Xiaobin
+  - family-names: Yang
+    given-names: Jian
+  - family-names: Liu
+    given-names: Yang
+  - family-names: Dong
+    given-names: Zhenhua
+  - family-names: Yu
+    given-names: Xianzhi
+  - family-names: Pan
+    given-names: Yinfei
+identifiers:
+  - type: url
+    value: "https://arxiv.org/abs/2604.07812"
+    description: "arXiv preprint"
+preferred-citation:
+  type: conference-paper
+  title: "HAWK: Head Importance-Aware Visual Token Pruning in Multimodal Models"
+  year: 2026
+  conference:
+    name: "IEEE/CVF Conference on Computer Vision and Pattern Recognition"
+  authors:
+    - family-names: Zhu
+      given-names: Qihui
+    - family-names: Zhang
+      given-names: Tao
+    - family-names: Wang
+      given-names: Yuchen
+    - family-names: Wen
+      given-names: Zijian
+    - family-names: Zhang
+      given-names: Mengjie
+    - family-names: Chen
+      given-names: Shuangwu
+    - family-names: Tan
+      given-names: Xiaobin
+    - family-names: Yang
+      given-names: Jian
+    - family-names: Liu
+      given-names: Yang
+    - family-names: Dong
+      given-names: Zhenhua
+    - family-names: Yu
+      given-names: Xianzhi
+    - family-names: Pan
+      given-names: Yinfei
