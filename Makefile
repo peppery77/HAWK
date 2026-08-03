@@ -3,9 +3,11 @@ MODEL_PATH ?= models/Qwen2.5-VL-7B-Instruct
 IMAGE ?= assets/smoke_test.png
 GPU ?= cuda:1
 KEEP_RATIO ?= 0.198
+TASK ?= realworldqa
+PRUNING_RATIO ?= 0.8
+GPUS ?= 0
 
-.PHONY: setup setup-vlmeval prepare-vlmeval download test demo smoke-image \
-	vlmeval-baseline vlmeval-hawk
+.PHONY: setup setup-vlmeval prepare-vlmeval download test demo smoke-image evaluate
 
 setup:
 	PYTHON_BIN="$(PYTHON_BIN)" scripts/setup_runtime.sh
@@ -14,11 +16,11 @@ setup-vlmeval:
 	PYTHON_BIN="$(PYTHON_BIN)" scripts/setup_vlmevalkit.sh
 
 prepare-vlmeval:
-	HF_ENDPOINT=https://hf-mirror.com PYTHON_BIN="$(PYTHON_BIN)" scripts/run.sh \
+	PYTHON_BIN="$(PYTHON_BIN)" scripts/run.sh \
 		scripts/prepare_vlmeval_datasets.py --project-root .
 
 download:
-	HF_ENDPOINT=https://hf-mirror.com PYTHON_BIN="$(PYTHON_BIN)" scripts/run.sh \
+	PYTHON_BIN="$(PYTHON_BIN)" scripts/run.sh \
 		scripts/download_model.py --local-dir "$(MODEL_PATH)"
 
 test:
@@ -34,12 +36,9 @@ demo: smoke-image
 		--device "$(GPU)" \
 		--keep-ratio "$(KEEP_RATIO)"
 
-vlmeval-baseline:
-	PYTHON_BIN="$(PYTHON_BIN)" DATASETS=RealWorldQA KEEP_RATIO=1.0 \
-		RUN_NAME=vlmeval_native_baseline \
-		scripts/evaluate_vlmeval.sh
-
-vlmeval-hawk:
-	PYTHON_BIN="$(PYTHON_BIN)" DATASETS=RealWorldQA KEEP_RATIO=0.20 \
-		RUN_NAME=vlmeval_native_hawk_p80 \
-		scripts/evaluate_vlmeval.sh
+evaluate:
+	"$(PYTHON_BIN)" scripts/evaluate.py \
+		--task "$(TASK)" \
+		--pruning_ratio "$(PRUNING_RATIO)" \
+		--model_path "$(MODEL_PATH)" \
+		--gpus "$(GPUS)"

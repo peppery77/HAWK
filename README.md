@@ -41,16 +41,23 @@ HAWK has three ingredients:
 - **Practical efficiency:** at 80% pruning on MME, reduces end-to-end latency from 20m15s to 15m04s (**1.34x** speedup), KV cache from 668 MB to 148 MB, and peak memory from 16.9 GB to 15.7 GB.
 - **Correct generation state:** synchronizes input IDs, masks, mRoPE positions, cache positions, and `rope_deltas` after prompt compaction.
 
-## Results
+## Reproduced Results
 
-Native-resolution Qwen2.5-VL-7B results from Table 3 of the paper:
+We reran the released Qwen2.5-VL-7B implementation with VLMEvalKit at native resolution. The table compares our reproduced scores with Table 3 of the paper:
 
-| Visual pruning | MME | TextVQA | ChartQA | RealWorldQA | Average relative performance |
-|---:|---:|---:|---:|---:|---:|
-| 0% | 2315.0 | 85.2 | 86.2 | 67.7 | 100.0% |
-| 60% | **2313.0** | **85.0** | **83.6** | **67.6** | **99.6%** |
-| 80% | **2311.0** | **83.0** | **76.8** | **65.0** | **96.2%** |
-| 90% | **2101.0** | **79.8** | **65.2** | **60.4** | **89.7%** |
+| Dataset | Visual pruning | Paper | Reproduced | Difference |
+|---|---:|---:|---:|---:|
+| ChartQA | 60% | 83.600 | **85.160** | +1.560 |
+| ChartQA | 80% | 76.800 | **79.040** | +2.240 |
+| ChartQA | 90% | 65.200 | **67.440** | +2.240 |
+| TextVQA | 60% | **85.000** | **85.000** | +0.000 |
+| TextVQA | 80% | 83.000 | **83.156** | +0.156 |
+| TextVQA | 90% | **79.800** | 79.152 | -0.648 |
+| RealWorldQA | 60% | 67.600 | **67.712** | +0.112 |
+| RealWorldQA | 80% | **65.000** | 62.353 | -2.647 |
+| RealWorldQA | 90% | **60.400** | 60.000 | -0.400 |
+
+These are newly reproduced results from the public code, not values copied from the paper. All runs use native aspect-ratio-preserving resolution, L2 score normalization, the original HAWK head-importance vector, and the corrected generation-state integration. The released sum-to-one vector differs only by a shared positive scale and therefore selects exactly the same top-k tokens.
 
 <p align="center">
   <img src="assets/cvpr2026_radar.png" alt="HAWK benchmark comparison" width="72%">
@@ -76,12 +83,6 @@ pip install -r requirements.txt
 pip install -e . --no-deps
 ```
 
-For users in China, the Python package index can be changed before setup:
-
-```bash
-export HAWK_PIP_INDEX_URL=https://mirrors.ustc.edu.cn/pypi/simple
-```
-
 ### 2. Build the isolated patched runtime
 
 HAWK patches a project-local copy of Transformers 4.52.0 under `.runtime/python`; it does not modify the global or Conda installation.
@@ -91,10 +92,9 @@ make setup PYTHON_BIN="$(which python)"
 make test PYTHON_BIN="$(which python)"
 ```
 
-### 3. Download Qwen2.5-VL-7B from HF Mirror
+### 3. Download Qwen2.5-VL-7B from Hugging Face
 
 ```bash
-HF_ENDPOINT=https://hf-mirror.com \
 make download PYTHON_BIN="$(which python)"
 ```
 
@@ -124,44 +124,32 @@ scripts/run.sh scripts/infer.py \
 
 ## Reproduce with VLMEvalKit
 
-The paper uses VLMEvalKit. This repository pins the compatible `ms-vlmeval==0.0.18` package, copies it into `.runtime/VLMEvalKit`, and applies a narrow Qwen2.5-VL attention-backend patch.
-
-### 1. Prepare VLMEvalKit and RealWorldQA
+The paper uses VLMEvalKit. One command now prepares VLMEvalKit, downloads the selected dataset from Hugging Face, converts it to the local evaluation format, and launches inference and scoring:
 
 ```bash
-make setup-vlmeval PYTHON_BIN="$(which python)"
-
-HF_ENDPOINT=https://hf-mirror.com \
-scripts/run.sh scripts/prepare_vlmeval_datasets.py \
-  --project-root . \
-  --datasets RealWorldQA
+python scripts/evaluate.py \
+  --task realworldqa \
+  --pruning_ratio 0.8 \
+  --model_path models/Qwen2.5-VL-7B-Instruct \
+  --gpus 0,1,2,3
 ```
 
-To prepare both supported MCQ datasets, pass `--datasets RealWorldQA ScienceQA_TEST`.
+`pruning_ratio` is the fraction of visual tokens removed. Supported tasks are `realworldqa`, `chartqa`, `textvqa`, `mme`, and `scienceqa`. Set `--pruning_ratio 0` for the unpruned baseline, or use `0.6`, `0.8`, and `0.9` for the paper's native-resolution settings. A single-GPU run only needs `--gpus 0`.
 
-### 2. Run baseline and HAWK
-
-Single GPU:
+For example, the nine reproduced runs in the table above can be launched with:
 
 ```bash
-CUDA_DEVICES=0 NUM_PROCESSES=1 DATASETS=RealWorldQA \
-KEEP_RATIO=1.0 RUN_NAME=realworldqa_baseline \
-scripts/evaluate_vlmeval.sh
-
-CUDA_DEVICES=0 NUM_PROCESSES=1 DATASETS=RealWorldQA \
-KEEP_RATIO=0.20 RUN_NAME=realworldqa_hawk_p80 \
-scripts/evaluate_vlmeval.sh
+for task in chartqa textvqa realworldqa; do
+  for pruning_ratio in 0.6 0.8 0.9; do
+    python scripts/evaluate.py \
+      --task "${task}" \
+      --pruning_ratio "${pruning_ratio}" \
+      --gpus 0,1,2,3
+  done
+done
 ```
 
-Five GPUs:
-
-```bash
-CUDA_DEVICES=0,1,2,3,4 NUM_PROCESSES=5 DATASETS=RealWorldQA \
-KEEP_RATIO=0.40 RUN_NAME=realworldqa_hawk_p60 \
-scripts/evaluate_vlmeval.sh
-```
-
-`KEEP_RATIO` is the fraction retained, not the fraction removed. Each run writes its generated config, prediction files, accuracy files, manifest, and per-sample pruning traces to `vlmeval_results/<RUN_NAME>/`.
+Each run writes its generated configuration, predictions, scores, manifest, and per-sample pruning traces to `vlmeval_results/<RUN_NAME>/`. Dataset and model downloads use the standard Hugging Face client and cache.
 
 ### Native-resolution settings
 
@@ -172,34 +160,16 @@ min_pixels = 1280 × 28 × 28 = 1,003,520
 max_pixels = 16384 × 28 × 28 = 12,845,056
 ```
 
-| Paper setting | `KEEP_RATIO` | Meaning |
-|---|---:|---|
-| Baseline | `1.0` | Retain all visual tokens |
-| Native 60% pruning | `0.40` | Retain 40% |
-| Native 80% pruning | `0.20` | Retain 20% |
-| Native 90% pruning | `0.10` | Retain 10% |
-| Fixed 60.5% pruning | `0.395` | Retain 39.5% |
-| Fixed 80.2% pruning | `0.198` | Retain 19.8% |
-| Fixed 90.1% pruning | `0.099` | Retain 9.9% |
+| Paper setting | `pruning_ratio` | Visual tokens retained |
+|---|---:|---:|
+| Baseline | `0.0` | 100% |
+| Native 60% pruning | `0.6` | 40% |
+| Native 80% pruning | `0.8` | 20% |
+| Native 90% pruning | `0.9` | 10% |
 
 Selection uses `ceil(num_visual_tokens × keep_ratio)` and always retains at least one visual token.
 
-### Additional datasets
-
-The local adapters currently support `RealWorldQA`, `ScienceQA_TEST`, `ChartQA_TEST`, `TextVQA_VAL`, and `MME`.
-
-```bash
-# TextVQA validation (5,000 questions)
-scripts/run.sh scripts/prepare_textvqa_hf.py --project-root .
-
-# MME (2,374 questions)
-scripts/run.sh scripts/prepare_mme_hf.py --project-root .
-
-# ChartQA test split
-scripts/run.sh scripts/prepare_chartqa_hf.py --project-root .
-```
-
-Then set `DATASETS` to the corresponding dataset name. For very large native-resolution samples, `evaluate_vlmeval.sh` enables `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` to reduce allocator fragmentation.
+For very large native-resolution samples, the evaluator enables `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` to reduce allocator fragmentation.
 
 ## Head Weights and Scoring
 
@@ -222,10 +192,12 @@ The released 28-head vector is normalized to sum to 1. The raw ablation vector i
 Alternative experiments can pass a 28-value JSON array and normalization mode:
 
 ```bash
-HEAD_WEIGHTS_JSON='[...28 values...]' \
-SCORE_NORMALIZATION=l2 \
-CUDA_DEVICES=0 DATASETS=RealWorldQA KEEP_RATIO=0.20 \
-RUN_NAME=custom_weights scripts/evaluate_vlmeval.sh
+python scripts/evaluate.py \
+  --task realworldqa \
+  --pruning_ratio 0.8 \
+  --gpus 0 \
+  --score_normalization l2 \
+  --head_weights_json '[...28 values...]'
 ```
 
 ## Python API
@@ -249,6 +221,7 @@ src/hawk/integration.py         public model configuration API
 src/hawk/vlmeval_adapter.py     VLMEvalKit model and dataset adapters
 scripts/patch_transformers.py   Qwen2.5-VL + generation-state integration
 scripts/infer.py                end-to-end image inference
+scripts/evaluate.py             dataset download + unified evaluation entry point
 scripts/evaluate_vlmeval.sh     distributed native-resolution evaluation
 tests/                          unit and patch-idempotency tests
 ```

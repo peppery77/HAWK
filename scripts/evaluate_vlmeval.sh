@@ -28,7 +28,6 @@ MIN_PIXELS=$((1280 * 28 * 28))
 MAX_PIXELS=$((16384 * 28 * 28))
 
 mkdir -p "${OUTPUT_ROOT}" "${TRACE_PATH%/*}" "${PROJECT_ROOT}/validation"
-export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 export HF_HOME="${PROJECT_ROOT}/.cache/huggingface"
 export LMUData="${DATA_ROOT}"
 export PYTHONPATH="${PROJECT_ROOT}/src:${PROJECT_ROOT}/.runtime/python:${PROJECT_ROOT}/.runtime/VLMEvalKit${PYTHONPATH:+:${PYTHONPATH}}"

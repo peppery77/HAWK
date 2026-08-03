@@ -4,7 +4,6 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 RUNTIME_DIR="${PROJECT_ROOT}/.runtime/python"
-PACKAGE_INDEX_URL="${HAWK_PIP_INDEX_URL:-https://pypi.org/simple}"
 
 "${PYTHON_BIN}" - <<'PY'
 missing = []
@@ -23,7 +22,6 @@ PY
 mkdir -p "${RUNTIME_DIR}"
 
 "${PYTHON_BIN}" -m pip install \
-  --index-url "${PACKAGE_INDEX_URL}" \
   --target "${RUNTIME_DIR}" \
   --upgrade \
   --no-deps \

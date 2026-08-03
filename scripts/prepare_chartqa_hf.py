@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the hfmirror ChartQA parquet as a local VLMEvalKit TSV."""
+"""Prepare the Hugging Face ChartQA parquet as a local VLMEvalKit TSV."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", type=Path, default=Path("."))
     parser.add_argument("--parquet", type=Path)
     parser.add_argument("--output-root", type=Path)
-    parser.add_argument("--endpoint", default="https://hf-mirror.com")
     return parser.parse_args()
 
 
@@ -42,7 +41,6 @@ def main() -> None:
                 filename=TEST_PARQUET,
                 repo_type="dataset",
                 local_dir=project_root / ".cache" / "chartqa-hf",
-                endpoint=args.endpoint,
             )
         )
     else:

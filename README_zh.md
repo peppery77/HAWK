@@ -27,6 +27,24 @@ HAWK 在完整语言模型前向传播之前移除冗余视觉 Token，同时保
 
 论文在 Qwen2.5-VL-7B 上剪除 80.2% 视觉 Token 后仍保持 96.0% 的平均相对性能。在原生动态分辨率下，60%、80% 和 90% 剪枝分别保持 99.6%、96.2% 和 89.7% 的平均相对性能。
 
+## 重新复现结果
+
+以下结果由本仓库代码使用 VLMEvalKit、原生动态分辨率和 L2 归一化重新运行得到：
+
+| 数据集 | 视觉 Token 剪枝率 | 论文结果 | 重新复现 | 差值 |
+|---|---:|---:|---:|---:|
+| ChartQA | 60% | 83.600 | **85.160** | +1.560 |
+| ChartQA | 80% | 76.800 | **79.040** | +2.240 |
+| ChartQA | 90% | 65.200 | **67.440** | +2.240 |
+| TextVQA | 60% | **85.000** | **85.000** | +0.000 |
+| TextVQA | 80% | 83.000 | **83.156** | +0.156 |
+| TextVQA | 90% | **79.800** | 79.152 | -0.648 |
+| RealWorldQA | 60% | 67.600 | **67.712** | +0.112 |
+| RealWorldQA | 80% | **65.000** | 62.353 | -2.647 |
+| RealWorldQA | 90% | **60.400** | 60.000 | -0.400 |
+
+表中“重新复现”不是论文数值的转录。全部实验使用原始 HAWK 注意力头重要性向量以及修正后的 generation state。公开代码中的权重仅统一缩放至和为 1，不会改变 top-k Token 选择。
+
 ## 快速开始
 
 以下流程面向 Linux + CUDA 环境，已验证版本为 Python 3.10、PyTorch 2.5、Transformers 4.52.0 和 A100 40 GB。
@@ -45,17 +63,15 @@ pip install torch==2.5.1 torchvision==0.20.1 \
 pip install -r requirements.txt
 pip install -e . --no-deps
 
-export HAWK_PIP_INDEX_URL=https://mirrors.ustc.edu.cn/pypi/simple
 make setup PYTHON_BIN="$(which python)"
 make test PYTHON_BIN="$(which python)"
 ```
 
 `make setup` 只修改 `.runtime/python` 中的项目局部 Transformers，不会修改 Conda 环境或系统全局安装。
 
-### 2. 通过 HF Mirror 下载模型
+### 2. 从 Hugging Face 下载模型
 
 ```bash
-HF_ENDPOINT=https://hf-mirror.com \
 make download PYTHON_BIN="$(which python)"
 ```
 
@@ -83,46 +99,41 @@ scripts/run.sh scripts/infer.py \
 
 ## 使用 VLMEvalKit 复现
 
-### 1. 准备 VLMEvalKit 和 RealWorldQA
+下面一个命令会自动准备 VLMEvalKit、从 Hugging Face 下载所选数据集、转换数据格式并完成推理与评分：
 
 ```bash
-make setup-vlmeval PYTHON_BIN="$(which python)"
-
-HF_ENDPOINT=https://hf-mirror.com \
-scripts/run.sh scripts/prepare_vlmeval_datasets.py \
-  --project-root . \
-  --datasets RealWorldQA
+python scripts/evaluate.py \
+  --task realworldqa \
+  --pruning_ratio 0.8 \
+  --model_path models/Qwen2.5-VL-7B-Instruct \
+  --gpus 0,1,2,3
 ```
 
-### 2. 运行 80% 剪枝评测
+`pruning_ratio` 表示被删除的视觉 Token 比例。支持的 `task` 为 `realworldqa`、`chartqa`、`textvqa`、`mme` 和 `scienceqa`。无剪枝基线设为 `0`，论文原生分辨率实验分别设为 `0.6`、`0.8` 和 `0.9`。
+
+一次运行三项数据集和三个剪枝率：
 
 ```bash
-CUDA_DEVICES=0 NUM_PROCESSES=1 DATASETS=RealWorldQA \
-KEEP_RATIO=0.20 RUN_NAME=realworldqa_hawk_p80 \
-scripts/evaluate_vlmeval.sh
+for task in chartqa textvqa realworldqa; do
+  for pruning_ratio in 0.6 0.8 0.9; do
+    python scripts/evaluate.py \
+      --task "${task}" \
+      --pruning_ratio "${pruning_ratio}" \
+      --gpus 0,1,2,3
+  done
+done
 ```
 
-多卡 60% 剪枝示例：
+原生动态分辨率使用 `min_pixels=1,003,520`、`max_pixels=12,845,056`：
 
-```bash
-CUDA_DEVICES=0,1,2,3,4 NUM_PROCESSES=5 DATASETS=RealWorldQA \
-KEEP_RATIO=0.40 RUN_NAME=realworldqa_hawk_p60 \
-scripts/evaluate_vlmeval.sh
-```
-
-`KEEP_RATIO` 表示保留比例，而不是剪除比例。原生动态分辨率使用 `min_pixels=1,003,520`、`max_pixels=12,845,056`：
-
-| 论文设置 | `KEEP_RATIO` |
+| 论文设置 | `pruning_ratio` |
 |---|---:|
-| 无剪枝 | `1.0` |
-| 原生分辨率剪枝 60% | `0.40` |
-| 原生分辨率剪枝 80% | `0.20` |
-| 原生分辨率剪枝 90% | `0.10` |
-| 固定分辨率剪枝 80.2% | `0.198` |
+| 无剪枝 | `0.0` |
+| 原生分辨率剪枝 60% | `0.6` |
+| 原生分辨率剪枝 80% | `0.8` |
+| 原生分辨率剪枝 90% | `0.9` |
 
-预测、得分、运行清单和逐样本剪枝统计保存在 `vlmeval_results/<RUN_NAME>/`。
-
-当前本地适配器支持 RealWorldQA、ScienceQA、ChartQA、TextVQA 和 MME。完整的数据准备命令、Python API、兼容范围和论文结果表见[英文 README](README.md)。
+数据集与模型均使用 Hugging Face 官方客户端及标准缓存。预测、得分、运行清单和逐样本剪枝统计保存在 `vlmeval_results/<RUN_NAME>/`。完整的 Python API 和兼容范围见[英文 README](README.md)。
 
 ## 权重说明
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import os
 import string
 from pathlib import Path
 from typing import Any
@@ -59,7 +58,6 @@ def prepare_realworld(cache_root: Path, output_root: Path) -> Path:
         filename=REALWORLD_METADATA,
         repo_type="dataset",
         local_dir=metadata_root,
-        endpoint=os.environ["HF_ENDPOINT"],
     )
     metadata = pd.read_excel(metadata_path).drop(
         columns=["prediction"], errors="ignore"
@@ -164,7 +162,6 @@ def prepare_scienceqa(cache_root: Path, output_root: Path) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-root", type=Path, required=True)
-    parser.add_argument("--endpoint", default="https://hf-mirror.com")
     parser.add_argument(
         "--datasets",
         nargs="+",
@@ -173,7 +170,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    os.environ["HF_ENDPOINT"] = args.endpoint
     project_root = args.project_root.expanduser().resolve()
     cache_root = project_root / ".cache" / "huggingface" / "datasets"
     output_root = project_root / "data" / "vlmeval"

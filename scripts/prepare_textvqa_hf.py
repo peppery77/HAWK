@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the HF-mirror TextVQA validation split for local VLMEvalKit use."""
+"""Prepare the Hugging Face TextVQA validation split for VLMEvalKit."""
 
 from __future__ import annotations
 
@@ -35,7 +35,6 @@ def image_suffix(payload: bytes, source_path: str | None = None) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-root", type=Path, required=True)
-    parser.add_argument("--endpoint", default="https://hf-mirror.com")
     args = parser.parse_args()
 
     project_root = args.project_root.expanduser().resolve()
@@ -52,7 +51,6 @@ def main() -> None:
                 filename=filename,
                 repo_type="dataset",
                 local_dir=download_root,
-                endpoint=args.endpoint,
             )
         )
         for filename in VALIDATION_SHARDS
